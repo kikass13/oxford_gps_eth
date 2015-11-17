@@ -227,7 +227,33 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     msg_imu.orientation.x = q.x();
     msg_imu.orientation.y = q.y();
     msg_imu.orientation.z = q.z();
-    msg_imu.orientation_covariance[0] = -1;
+    msg_imu.orientation_covariance[0] = 0.0174532925;
+    msg_imu.orientation_covariance[1] = 0;
+    msg_imu.orientation_covariance[2] = 0;
+    msg_imu.orientation_covariance[3] = 0;
+    msg_imu.orientation_covariance[4] = 0.0174532925;
+    msg_imu.orientation_covariance[5] = 0;
+    msg_imu.orientation_covariance[6] = 0;
+    msg_imu.orientation_covariance[7] = 0;
+    msg_imu.orientation_covariance[8] = 0.0174532925;
+    msg_imu.angular_velocity_covariance[0] = 0.000436332313;
+    msg_imu.angular_velocity_covariance[1] = 0;
+    msg_imu.angular_velocity_covariance[2] = 0;
+    msg_imu.angular_velocity_covariance[3] = 0;
+    msg_imu.angular_velocity_covariance[4] = 0.000436332313;
+    msg_imu.angular_velocity_covariance[5] = 0;
+    msg_imu.angular_velocity_covariance[6] = 0;
+    msg_imu.angular_velocity_covariance[7] = 0;
+    msg_imu.angular_velocity_covariance[8] = 0.000436332313;
+    msg_imu.linear_acceleration_covariance[0] = 0.0004;
+    msg_imu.linear_acceleration_covariance[1] = 0;
+    msg_imu.linear_acceleration_covariance[2] = 0;
+    msg_imu.linear_acceleration_covariance[3] = 0;
+    msg_imu.linear_acceleration_covariance[4] = 0.0004;
+    msg_imu.linear_acceleration_covariance[5] = 0;
+    msg_imu.linear_acceleration_covariance[6] = 0;
+    msg_imu.linear_acceleration_covariance[7] = 0;
+    msg_imu.linear_acceleration_covariance[8] = 0.0004;
     pub_imu.publish(msg_imu);
 #if 0
   } else {
