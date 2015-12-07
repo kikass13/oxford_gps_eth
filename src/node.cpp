@@ -88,6 +88,12 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
         switch (packet->chan.chan0.position_mode) {
           case MODE_DIFFERENTIAL:
           case MODE_DIFFERENTIAL_PP:
+          case MODE_RTK_FLOAT:
+          case MODE_RTK_INTEGER:
+          case MODE_RTK_FLOAT_PP:
+          case MODE_RTK_INTEGER_PP:
+          case MODE_DOPLER_PP:
+          case MODE_SPS_PP:
             fix_status = sensor_msgs::NavSatStatus::STATUS_GBAS_FIX;
             break;
           case MODE_OMNISTAR_VBS:
@@ -103,14 +109,8 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
           case MODE_NONE:
           case MODE_SEARCH:
           case MODE_DOPLER:
-          case MODE_RTK_FLOAT:
-          case MODE_RTK_INTEGER:
           case MODE_NO_DATA:
           case MODE_BLANKED:
-          case MODE_DOPLER_PP:
-          case MODE_SPS_PP:
-          case MODE_RTK_FLOAT_PP:
-          case MODE_RTK_INTEGER_PP:
           case MODE_NOT_RECOGNISED:
           case MODE_UNKNOWN:
           default:
