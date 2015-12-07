@@ -4,6 +4,7 @@ project(oxford_gps_eth)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   sensor_msgs
+  nav_msgs
   tf
 )
 
