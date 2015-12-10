@@ -70,6 +70,10 @@ static inline double SQUARE(double x)
   return x * x;
 }
 
+#ifndef OXFORD_DISPLAY_INFO
+#define OXFORD_DISPLAY_INFO 0
+#endif
+
 static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, ros::Publisher &pub_vel,
                                 ros::Publisher &pub_imu, ros::Publisher &pub_odom, const std::string &frame_id)
 {
@@ -117,7 +121,7 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
             fix_status = sensor_msgs::NavSatStatus::STATUS_NO_FIX;
             break;
         }
-#if 0
+#if OXFORD_DISPLAY_INFO
         ROS_INFO("Num Sats: %u, Position mode: %u, Velocity mode: %u, Orientation mode: %u",
                  packet->chan.chan0.num_sats,
                  packet->chan.chan0.position_mode,
@@ -131,7 +135,7 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
           position_covariance[1] = SQUARE((double)packet->chan.chan3.acc_position_north * 1e-3);
           position_covariance[2] = SQUARE((double)packet->chan.chan3.acc_position_down * 1e-3);
           position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
-#if 0
+#if OXFORD_DISPLAY_INFO
           ROS_INFO("Position accuracy: North: %umm, East: %umm, Down: %umm",
                    packet->chan.chan3.acc_position_north,
                    packet->chan.chan3.acc_position_east,
@@ -147,10 +151,10 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
           velocity_covariance[1] = SQUARE((double)packet->chan.chan4.acc_velocity_north * 1e-3);
           velocity_covariance[2] = SQUARE((double)packet->chan.chan4.acc_velocity_down * 1e-3);
           velocity_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
-#if 0
+#if OXFORD_DISPLAY_INFO
           ROS_INFO("Velocity accuracy: North: %umm/s, East: %umm/s, Down: %umm/s",
-                   packet->chan.chan4.acc_velocity_east,
                    packet->chan.chan4.acc_velocity_north,
+                   packet->chan.chan4.acc_velocity_east,
                    packet->chan.chan4.acc_velocity_down);
 #endif
         } else {
@@ -164,37 +168,37 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
           orientation_covariance[1] = SQUARE((double)packet->chan.chan5.acc_pitch * 1e-5);
           orientation_covariance[2] = SQUARE((double)packet->chan.chan5.acc_heading * 1e-5);
           orientation_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
-#if 0
+#if OXFORD_DISPLAY_INFO
           ROS_INFO("Velocity accuracy: Heading: %frad, Pitch: %frad, Roll: %frad",
-                   (double)packet->chan.chan5.acc_roll * 1e-5,
+                   (double)packet->chan.chan5.acc_heading * 1e-5,
                    (double)packet->chan.chan5.acc_pitch * 1e-5,
-                   (double)packet->chan.chan5.acc_heading * 1e-5);
+                   (double)packet->chan.chan5.acc_roll * 1e-5);
 #endif
         } else {
           orientation_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
         }
         break;
       case 23:
-#if 0
+#if OXFORD_DISPLAY_INFO
         ROS_INFO("Delay: %ums", packet->chan.chan23.delay_ms);
 #endif
         break;
       case 27:
-#if 0
+#if OXFORD_DISPLAY_INFO
         ROS_INFO("Heading quality: %u", packet->chan.chan27.heading_quality);
 #endif
         break;
       case 37:
-#if 0
+#if OXFORD_DISPLAY_INFO
         if (packet->chan.chan37.valid) {
-          ROS_INFO("Heading Misaligment: Angle: %frad, Accuracy: %frad",
+          ROS_INFO("Heading Misalignment: Angle: %frad, Accuracy: %frad",
                    (double)packet->chan.chan37.heading_misalignment_angle * 1e-4,
-                   (double)packet->chan.chan37.heading_misalignment_angle * 1e-4);
+                   (double)packet->chan.chan37.heading_misalignment_accuracy * 1e-4);
         }
 #endif
         break;
       case 48:
-#if 0
+#if OXFORD_DISPLAY_INFO
         ROS_INFO("HDOP: %0.1f, PDOP: %0.1f",
                  (double)packet->chan.chan48.HDOP * 1e-1,
                  (double)packet->chan.chan48.PDOP * 1e-1);
@@ -212,9 +216,9 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     msg_fix.status.service = sensor_msgs::NavSatStatus::SERVICE_GPS;
     msg_fix.position_covariance_type = position_covariance_type;
     if (position_covariance_type > sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN) {
-      msg_fix.position_covariance[0] = position_covariance[0];
-      msg_fix.position_covariance[4] = position_covariance[1];
-      msg_fix.position_covariance[8] = position_covariance[2];
+      msg_fix.position_covariance[0] = position_covariance[0]; // x
+      msg_fix.position_covariance[4] = position_covariance[1]; // y
+      msg_fix.position_covariance[8] = position_covariance[2]; // z
     }
     pub_fix.publish(msg_fix);
 
@@ -225,9 +229,9 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     msg_vel.twist.twist.linear.y = (double)packet->vel_east * -1e-4;
     msg_vel.twist.twist.linear.z = (double)packet->vel_down * -1e-4;
     if (velocity_covariance_type > sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN) {
-      msg_vel.twist.covariance[0] = velocity_covariance[0];
-      msg_vel.twist.covariance[7] = velocity_covariance[1];
-      msg_vel.twist.covariance[14] = velocity_covariance[2];
+      msg_vel.twist.covariance[0] = velocity_covariance[0]; // x
+      msg_vel.twist.covariance[7] = velocity_covariance[1]; // y
+      msg_vel.twist.covariance[14] = velocity_covariance[2]; // z
     }
     pub_vel.publish(msg_vel);
 
@@ -243,38 +247,25 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     msg_imu.angular_velocity.x = (double)packet->gyro_x * 1e-5;
     msg_imu.angular_velocity.y = (double)packet->gyro_y * 1e-5;
     msg_imu.angular_velocity.z = (double)packet->gyro_z * -1e-5;
-    msg_imu.angular_velocity_covariance[0] = -1;
     msg_imu.orientation.w = q.w();
     msg_imu.orientation.x = q.x();
     msg_imu.orientation.y = q.y();
     msg_imu.orientation.z = q.z();
     if (orientation_covariance_type > sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN) {
-      msg_imu.orientation_covariance[0] = orientation_covariance[0];
-      msg_imu.orientation_covariance[4] = orientation_covariance[1];
-      msg_imu.orientation_covariance[8] = orientation_covariance[2];
+      msg_imu.orientation_covariance[0] = orientation_covariance[0]; // x
+      msg_imu.orientation_covariance[4] = orientation_covariance[1]; // y
+      msg_imu.orientation_covariance[8] = orientation_covariance[2]; // z
     } else {
-      msg_imu.orientation_covariance[0] = 0.0174532925;
-      msg_imu.orientation_covariance[4] = 0.0174532925;
-      msg_imu.orientation_covariance[8] = 0.0174532925;
+      msg_imu.orientation_covariance[0] = 0.0174532925; // x
+      msg_imu.orientation_covariance[4] = 0.0174532925; // y
+      msg_imu.orientation_covariance[8] = 0.0174532925; // z
     }
-    msg_imu.angular_velocity_covariance[0] = 0.000436332313;
-    msg_imu.angular_velocity_covariance[1] = 0;
-    msg_imu.angular_velocity_covariance[2] = 0;
-    msg_imu.angular_velocity_covariance[3] = 0;
-    msg_imu.angular_velocity_covariance[4] = 0.000436332313;
-    msg_imu.angular_velocity_covariance[5] = 0;
-    msg_imu.angular_velocity_covariance[6] = 0;
-    msg_imu.angular_velocity_covariance[7] = 0;
-    msg_imu.angular_velocity_covariance[8] = 0.000436332313;
-    msg_imu.linear_acceleration_covariance[0] = 0.0004;
-    msg_imu.linear_acceleration_covariance[1] = 0;
-    msg_imu.linear_acceleration_covariance[2] = 0;
-    msg_imu.linear_acceleration_covariance[3] = 0;
-    msg_imu.linear_acceleration_covariance[4] = 0.0004;
-    msg_imu.linear_acceleration_covariance[5] = 0;
-    msg_imu.linear_acceleration_covariance[6] = 0;
-    msg_imu.linear_acceleration_covariance[7] = 0;
-    msg_imu.linear_acceleration_covariance[8] = 0.0004;
+    msg_imu.angular_velocity_covariance[0] = 0.000436332313; // x
+    msg_imu.angular_velocity_covariance[4] = 0.000436332313; // y
+    msg_imu.angular_velocity_covariance[8] = 0.000436332313; // x
+    msg_imu.linear_acceleration_covariance[0] = 0.0004; // x
+    msg_imu.linear_acceleration_covariance[4] = 0.0004; // y
+    msg_imu.linear_acceleration_covariance[8] = 0.0004; // z
     pub_imu.publish(msg_imu);
     
     nav_msgs::Odometry msg_odom;
@@ -283,7 +274,7 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     msg_odom.child_frame_id = "base_link";
     msg_odom.twist = msg_vel.twist;
     pub_odom.publish(msg_odom);
-#if 0
+#if OXFORD_DISPLAY_INFO
   } else {
     ROS_WARN("Nav Status: %u", packet->nav_status);
 #endif
@@ -297,12 +288,15 @@ int main(int argc, char **argv)
   ros::NodeHandle priv_nh("~");
 
   std::string interface = "";
-  std::string ip_addr = "";
-  int port = 3000;
-  std::string frame_id = "gps";
   priv_nh.getParam("interface", interface);
+
+  std::string ip_addr = "";
   priv_nh.getParam("ip_address", ip_addr);
+
+  int port = 3000;
   priv_nh.getParam("port", port);
+
+  std::string frame_id = "gps";
   priv_nh.getParam("frame_id", frame_id);
 
   if (port > UINT16_MAX) {
