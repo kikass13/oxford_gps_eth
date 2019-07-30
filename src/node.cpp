@@ -42,6 +42,7 @@
 #include <geometry_msgs/TwistWithCovarianceStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <std_msgs/String.h>
+#include <gps_common/GPSFix.h>
 
 // Tf
 #include <tf/LinearMath/Quaternion.h>
@@ -186,7 +187,7 @@ static inline double toUtcTime(uint32_t gps_minutes, uint16_t gps_ms)
   return GPS_EPOCH_OFFSET - GPS_LEAP_SECONDS + 60.0 * (double)gps_minutes + 0.001 * (double)gps_ms;
 }
 
-static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, ros::Publisher &pub_vel,
+static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, ros::Publisher &pub_enhanced_fix, ros::Publisher &pub_vel,
                                 ros::Publisher &pub_imu, ros::Publisher &pub_odom, ros::Publisher &pub_pos_type,
                                 ros::Publisher &pub_nav_status, ros::Publisher &pub_gps_time_ref, const std::string & frame_id_gps,
                                 const std::string &frame_id_vel, const std::string &frame_id_odom)
@@ -389,6 +390,26 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     }
     pub_fix.publish(msg_fix);
 
+    gps_common::GPSFix msg_enhanced_fix;
+    msg_enhanced_fix.header.stamp = stamp;
+    msg_enhanced_fix.status.motion_source = gps_common::GPSStatus::SOURCE_GPS | gps_common::GPSStatus::SOURCE_DOPPLER | gps_common::GPSStatus::SOURCE_GYRO | gps_common::GPSStatus::SOURCE_ACCEL;
+    msg_enhanced_fix.status.orientation_source = gps_common::GPSStatus::SOURCE_GPS | gps_common::GPSStatus::SOURCE_DOPPLER | gps_common::GPSStatus::SOURCE_GYRO | gps_common::GPSStatus::SOURCE_ACCEL;
+    msg_enhanced_fix.status.position_source = gps_common::GPSStatus::SOURCE_GPS | gps_common::GPSStatus::SOURCE_DOPPLER | gps_common::GPSStatus::SOURCE_GYRO | gps_common::GPSStatus::SOURCE_ACCEL;
+    msg_enhanced_fix.status.status = gps_common::GPSStatus::STATUS_FIX; // TODO: use position mode to determine if "FIX" or "DGPS_FIX" should be used here
+    msg_enhanced_fix.latitude = packet->latitude * (180 / M_PI);
+    msg_enhanced_fix.longitude = packet->longitude * (180 / M_PI);
+    msg_enhanced_fix.altitude = packet->altitude;
+    msg_enhanced_fix.track = (double)packet->heading * 1e-6;
+    msg_enhanced_fix.roll = (double)packet->roll * 1e-6;
+    msg_enhanced_fix.pitch = (double)packet->pitch * 1e-6;
+    msg_enhanced_fix.speed = sqrt(east_vel * east_vel + north_vel * north_vel);
+    msg_enhanced_fix.climb = -(double)packet->vel_down * 1e-4;
+    msg_enhanced_fix.position_covariance_type = gps_common::GPSFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
+    msg_enhanced_fix.position_covariance[0*3 + 0] = position_covariance[0];
+    msg_enhanced_fix.position_covariance[1*3 + 1] = position_covariance[1];
+    msg_enhanced_fix.position_covariance[2*3 + 2] = position_covariance[2];
+    pub_enhanced_fix.publish(msg_enhanced_fix);
+
     geometry_msgs::TwistWithCovarianceStamped msg_vel;
     msg_vel.header.stamp = stamp;
     msg_vel.header.frame_id = frame_id_vel;
@@ -504,6 +525,7 @@ int main(int argc, char **argv)
   if (openSocket(interface, ip_addr, port, &fd, &sock)) {
     // Setup Publishers
     ros::Publisher pub_fix = node.advertise<sensor_msgs::NavSatFix>("gps/fix", 2);
+    ros::Publisher pub_enhanced_fix = node.advertise<gps_common::GPSFix>("gps/enhanced_fix", 2);
     ros::Publisher pub_vel = node.advertise<geometry_msgs::TwistWithCovarianceStamped>("gps/vel", 2);
     ros::Publisher pub_imu = node.advertise<sensor_msgs::Imu>("imu/data", 2);
     ros::Publisher pub_odom = node.advertise<nav_msgs::Odometry>("gps/odom", 2);
@@ -524,7 +546,7 @@ int main(int argc, char **argv)
             first = false;
             ROS_INFO("Connected to Oxford GPS at %s:%u", inet_ntoa(((sockaddr_in*)&source)->sin_addr), htons(((sockaddr_in*)&source)->sin_port));
           }
-          handlePacket(&packet, pub_fix, pub_vel, pub_imu, pub_odom, pub_pos_type, pub_nav_status, pub_gps_time_ref, frame_id_gps, frame_id_vel, frame_id_odom);
+          handlePacket(&packet, pub_fix, pub_enhanced_fix, pub_vel, pub_imu, pub_odom, pub_pos_type, pub_nav_status, pub_gps_time_ref, frame_id_gps, frame_id_vel, frame_id_odom);
         }
       }
 
