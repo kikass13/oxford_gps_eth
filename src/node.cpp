@@ -192,7 +192,7 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
                                 ros::Publisher &pub_nav_status, ros::Publisher &pub_gps_time_ref, const std::string & frame_id_gps,
                                 const std::string &frame_id_vel, const std::string &frame_id_odom)
 {
-  static uint8_t fix_status = sensor_msgs::NavSatStatus::STATUS_FIX;
+  static int8_t fix_status = sensor_msgs::NavSatStatus::STATUS_FIX;
   static uint8_t position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
   static double position_covariance[3];
   static uint8_t velocity_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
@@ -392,10 +392,11 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
 
     gps_common::GPSFix msg_enhanced_fix;
     msg_enhanced_fix.header.stamp = stamp;
+    msg_enhanced_fix.header.frame_id = frame_id_gps;
     msg_enhanced_fix.status.motion_source = gps_common::GPSStatus::SOURCE_GPS | gps_common::GPSStatus::SOURCE_DOPPLER | gps_common::GPSStatus::SOURCE_GYRO | gps_common::GPSStatus::SOURCE_ACCEL;
     msg_enhanced_fix.status.orientation_source = gps_common::GPSStatus::SOURCE_GPS | gps_common::GPSStatus::SOURCE_DOPPLER | gps_common::GPSStatus::SOURCE_GYRO | gps_common::GPSStatus::SOURCE_ACCEL;
     msg_enhanced_fix.status.position_source = gps_common::GPSStatus::SOURCE_GPS | gps_common::GPSStatus::SOURCE_DOPPLER | gps_common::GPSStatus::SOURCE_GYRO | gps_common::GPSStatus::SOURCE_ACCEL;
-    msg_enhanced_fix.status.status = gps_common::GPSStatus::STATUS_FIX; // TODO: use position mode to determine if "FIX" or "DGPS_FIX" should be used here
+    msg_enhanced_fix.status.status = fix_status;
     msg_enhanced_fix.latitude = packet->latitude * (180 / M_PI);
     msg_enhanced_fix.longitude = packet->longitude * (180 / M_PI);
     msg_enhanced_fix.altitude = packet->altitude;
@@ -404,10 +405,12 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     msg_enhanced_fix.pitch = (double)packet->pitch * 1e-6;
     msg_enhanced_fix.speed = sqrt(east_vel * east_vel + north_vel * north_vel);
     msg_enhanced_fix.climb = -(double)packet->vel_down * 1e-4;
-    msg_enhanced_fix.position_covariance_type = gps_common::GPSFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
-    msg_enhanced_fix.position_covariance[0*3 + 0] = position_covariance[0];
-    msg_enhanced_fix.position_covariance[1*3 + 1] = position_covariance[1];
-    msg_enhanced_fix.position_covariance[2*3 + 2] = position_covariance[2];
+    msg_enhanced_fix.position_covariance_type = position_covariance_type;
+    if (position_covariance_type > sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN) {
+      msg_enhanced_fix.position_covariance[0*3 + 0] = position_covariance[0];
+      msg_enhanced_fix.position_covariance[1*3 + 1] = position_covariance[1];
+      msg_enhanced_fix.position_covariance[2*3 + 2] = position_covariance[2];
+    }
     pub_enhanced_fix.publish(msg_enhanced_fix);
 
     geometry_msgs::TwistWithCovarianceStamped msg_vel;

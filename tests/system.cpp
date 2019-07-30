@@ -7,6 +7,7 @@
 
 #include <ros/ros.h>
 #include <sensor_msgs/NavSatFix.h>
+#include <gps_common/GPSFix.h>
 #include <sensor_msgs/Imu.h>
 #include <geometry_msgs/TwistWithCovarianceStamped.h>
 
@@ -32,21 +33,25 @@ std::string g_frame_id_odom = "base_footprint";
 
 // Subscribed topics
 ros::Subscriber g_sub_fix;
+ros::Subscriber g_sub_enhanced_fix;
 ros::Subscriber g_sub_vel;
 ros::Subscriber g_sub_imu;
 
 // Received messages
 MsgRx<sensor_msgs::NavSatFix> g_msg_fix;
+MsgRx<gps_common::GPSFix> g_msg_enhanced_fix;
 MsgRx<geometry_msgs::TwistWithCovarianceStamped> g_msg_vel;
 MsgRx<sensor_msgs::Imu> g_msg_imu;
 void recvClear() {
   g_msg_fix.clear();
+  g_msg_enhanced_fix.clear();
   g_msg_vel.clear();
   g_msg_imu.clear();
 }
 
 // Subscriber receive callbacks
 void recvGpsFix(const sensor_msgs::NavSatFix::ConstPtr& msg) { g_msg_fix.set(*msg); }
+void recvEnhancedGpsFix(const gps_common::GPSFix::ConstPtr& msg) { g_msg_enhanced_fix.set(*msg); }
 void recvGpsVel(const geometry_msgs::TwistWithCovarianceStamped::ConstPtr& msg) { g_msg_vel.set(*msg); }
 void recvImuData(const sensor_msgs::Imu::ConstPtr& msg) { g_msg_imu.set(*msg); }
 
@@ -96,6 +101,7 @@ static bool waitForTopics(ros::WallDuration dur) {
   const ros::WallTime start = ros::WallTime::now();
   while (true) {
     if ((g_sub_fix.getNumPublishers() == 1) &&
+        (g_sub_enhanced_fix.getNumPublishers() == 1) &&
         (g_sub_vel.getNumPublishers() == 1) &&
         (g_sub_imu.getNumPublishers() == 1)) {
       return true;
@@ -110,7 +116,7 @@ static bool waitForTopics(ros::WallDuration dur) {
 static bool waitForMsgs(ros::WallDuration dur) {
   const ros::WallTime start = ros::WallTime::now();
   while (true) {
-    if (g_msg_fix.valid() && g_msg_vel.valid() && g_msg_imu.valid()) {
+    if (g_msg_fix.valid() && g_msg_enhanced_fix.valid() && g_msg_vel.valid() && g_msg_imu.valid()) {
       return true;
     }
     if ((ros::WallTime::now() - start) > dur) {
@@ -126,9 +132,11 @@ TEST(Main, topics)
 {
   EXPECT_TRUE(waitForTopics(ros::WallDuration(2.0)));
   ASSERT_EQ(1, g_sub_fix.getNumPublishers());
+  ASSERT_EQ(1, g_sub_enhanced_fix.getNumPublishers());
   ASSERT_EQ(1, g_sub_vel.getNumPublishers());
   ASSERT_EQ(1, g_sub_imu.getNumPublishers());
   EXPECT_FALSE(g_msg_fix.valid());
+  EXPECT_FALSE(g_msg_enhanced_fix.valid());
   EXPECT_FALSE(g_msg_vel.valid());
   EXPECT_FALSE(g_msg_imu.valid());
 }
@@ -145,6 +153,7 @@ TEST(Main, packets)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_FALSE(waitForMsgs(DURATION));
   EXPECT_FALSE(g_msg_fix.valid());
+  EXPECT_FALSE(g_msg_enhanced_fix.valid());
   EXPECT_FALSE(g_msg_vel.valid());
   EXPECT_FALSE(g_msg_imu.valid());
 
@@ -153,6 +162,7 @@ TEST(Main, packets)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_FALSE(waitForMsgs(DURATION));
   EXPECT_FALSE(g_msg_fix.valid());
+  EXPECT_FALSE(g_msg_enhanced_fix.valid());
   EXPECT_FALSE(g_msg_vel.valid());
   EXPECT_FALSE(g_msg_imu.valid());
 
@@ -162,6 +172,7 @@ TEST(Main, packets)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_TRUE(waitForMsgs(DURATION));
   ASSERT_TRUE(g_msg_fix.valid());
+  ASSERT_TRUE(g_msg_enhanced_fix.valid());
   ASSERT_TRUE(g_msg_vel.valid());
   ASSERT_TRUE(g_msg_imu.valid());
 }
@@ -181,15 +192,21 @@ TEST(Main, header)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_TRUE(waitForMsgs(DURATION));
   ASSERT_TRUE(g_msg_fix.valid());
+  ASSERT_TRUE(g_msg_enhanced_fix.valid());
   ASSERT_TRUE(g_msg_vel.valid());
   ASSERT_TRUE(g_msg_imu.valid());
   EXPECT_STREQ(g_msg_fix.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
+  EXPECT_STREQ(g_msg_enhanced_fix.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
   EXPECT_STREQ(g_msg_vel.get().header.frame_id.c_str(), g_frame_id_vel.c_str());
   EXPECT_STREQ(g_msg_imu.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
   EXPECT_EQ(g_msg_fix.get().header.stamp, g_msg_vel.get().header.stamp);
+  EXPECT_EQ(g_msg_enhanced_fix.get().header.stamp, g_msg_vel.get().header.stamp);
   EXPECT_EQ(g_msg_fix.get().header.stamp, g_msg_imu.get().header.stamp);
+  EXPECT_EQ(g_msg_enhanced_fix.get().header.stamp, g_msg_imu.get().header.stamp);
   EXPECT_NE(g_msg_fix.get().header.stamp, ros::Time(0));
+  EXPECT_NE(g_msg_enhanced_fix.get().header.stamp, ros::Time(0));
   EXPECT_NEAR((g_msg_fix.get().header.stamp - stamp).toSec(), 0, 0.01);
+  EXPECT_NEAR((g_msg_enhanced_fix.get().header.stamp - stamp).toSec(), 0, 0.01);
 }
 
 // Verify correct fields in the sensor_msgs::NavSatFix message
@@ -209,9 +226,11 @@ TEST(Main, fix)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_TRUE(waitForMsgs(DURATION));
   ASSERT_TRUE(g_msg_fix.valid());
+  ASSERT_TRUE(g_msg_enhanced_fix.valid());
   ASSERT_TRUE(g_msg_vel.valid());
   ASSERT_TRUE(g_msg_imu.valid());
   EXPECT_STREQ(g_msg_fix.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
+  EXPECT_STREQ(g_msg_enhanced_fix.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
   EXPECT_EQ(g_msg_fix.get().status.status, sensor_msgs::NavSatStatus::STATUS_NO_FIX);
   EXPECT_EQ(g_msg_fix.get().status.service, sensor_msgs::NavSatStatus::SERVICE_GPS);
   EXPECT_EQ(g_msg_fix.get().latitude, packet.latitude * (180 / M_PI));
@@ -228,6 +247,29 @@ TEST(Main, fix)
   EXPECT_EQ(g_msg_fix.get().position_covariance[7], 0);
   EXPECT_EQ(g_msg_fix.get().position_covariance[8], 0);
 
+  EXPECT_EQ(g_msg_enhanced_fix.get().status.motion_source, gps_common::GPSStatus::SOURCE_GPS | gps_common::GPSStatus::SOURCE_DOPPLER | gps_common::GPSStatus::SOURCE_GYRO | gps_common::GPSStatus::SOURCE_ACCEL);
+  EXPECT_EQ(g_msg_enhanced_fix.get().status.orientation_source, gps_common::GPSStatus::SOURCE_GPS | gps_common::GPSStatus::SOURCE_DOPPLER | gps_common::GPSStatus::SOURCE_GYRO | gps_common::GPSStatus::SOURCE_ACCEL);
+  EXPECT_EQ(g_msg_enhanced_fix.get().status.position_source, gps_common::GPSStatus::SOURCE_GPS | gps_common::GPSStatus::SOURCE_DOPPLER | gps_common::GPSStatus::SOURCE_GYRO | gps_common::GPSStatus::SOURCE_ACCEL);
+  EXPECT_EQ(g_msg_enhanced_fix.get().status.status, gps_common::GPSStatus::STATUS_NO_FIX);
+  EXPECT_EQ(g_msg_enhanced_fix.get().latitude, packet.latitude * (180 / M_PI));
+  EXPECT_EQ(g_msg_enhanced_fix.get().longitude, packet.longitude * (180 / M_PI));
+  EXPECT_EQ(g_msg_enhanced_fix.get().altitude, packet.altitude);
+  EXPECT_EQ(g_msg_enhanced_fix.get().track, packet.heading * 1e-6);
+  EXPECT_EQ(g_msg_enhanced_fix.get().roll, packet.roll * 1e-6);
+  EXPECT_EQ(g_msg_enhanced_fix.get().pitch, packet.pitch * 1e-6);
+  EXPECT_EQ(g_msg_enhanced_fix.get().speed, sqrt((packet.vel_east * 1e-4) * (packet.vel_east * 1e-4) + (packet.vel_north * 1e-4) * (packet.vel_north * 1e-4)));
+  EXPECT_EQ(g_msg_enhanced_fix.get().climb, -packet.vel_down * 1e-4);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance_type, sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[0], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[1], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[2], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[3], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[4], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[5], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[6], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[7], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[8], 0);
+
   // Set position mode on channel 0
   memset(&packet.chan, 0x00, sizeof(packet.chan));
   packet.channel = 0;
@@ -236,9 +278,11 @@ TEST(Main, fix)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_TRUE(waitForMsgs(DURATION));
   ASSERT_TRUE(g_msg_fix.valid());
+  ASSERT_TRUE(g_msg_enhanced_fix.valid());
   ASSERT_TRUE(g_msg_vel.valid());
   ASSERT_TRUE(g_msg_imu.valid());
   EXPECT_STREQ(g_msg_fix.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
+  EXPECT_STREQ(g_msg_enhanced_fix.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
   EXPECT_EQ(g_msg_fix.get().status.status, sensor_msgs::NavSatStatus::STATUS_GBAS_FIX);
   EXPECT_EQ(g_msg_fix.get().status.service, sensor_msgs::NavSatStatus::SERVICE_GPS);
   EXPECT_EQ(g_msg_fix.get().latitude, packet.latitude * (180 / M_PI));
@@ -255,6 +299,21 @@ TEST(Main, fix)
   EXPECT_EQ(g_msg_fix.get().position_covariance[7], 0);
   EXPECT_EQ(g_msg_fix.get().position_covariance[8], 0);
 
+  EXPECT_EQ(g_msg_enhanced_fix.get().status.status, sensor_msgs::NavSatStatus::STATUS_GBAS_FIX);
+  EXPECT_EQ(g_msg_enhanced_fix.get().latitude, packet.latitude * (180 / M_PI));
+  EXPECT_EQ(g_msg_enhanced_fix.get().longitude, packet.longitude * (180 / M_PI));
+  EXPECT_EQ(g_msg_enhanced_fix.get().altitude, packet.altitude);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance_type, sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[0], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[1], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[2], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[3], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[4], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[5], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[6], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[7], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[8], 0);
+
   // Set position covariance on channel 3
   memset(&packet.chan, 0x00, sizeof(packet.chan));
   packet.channel = 3;
@@ -266,9 +325,11 @@ TEST(Main, fix)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_TRUE(waitForMsgs(DURATION));
   ASSERT_TRUE(g_msg_fix.valid());
+  ASSERT_TRUE(g_msg_enhanced_fix.valid());
   ASSERT_TRUE(g_msg_vel.valid());
   ASSERT_TRUE(g_msg_imu.valid());
   EXPECT_STREQ(g_msg_fix.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
+  EXPECT_STREQ(g_msg_enhanced_fix.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
   EXPECT_EQ(g_msg_fix.get().status.status, sensor_msgs::NavSatStatus::STATUS_GBAS_FIX);
   EXPECT_EQ(g_msg_fix.get().status.service, sensor_msgs::NavSatStatus::SERVICE_GPS);
   EXPECT_EQ(g_msg_fix.get().latitude, packet.latitude * (180 / M_PI));
@@ -285,6 +346,21 @@ TEST(Main, fix)
   EXPECT_EQ(g_msg_fix.get().position_covariance[7], 0);
   EXPECT_EQ(g_msg_fix.get().position_covariance[8], SQUARE(packet.chan.chan3.acc_position_down * 1e-3)); // z
 
+  EXPECT_EQ(g_msg_enhanced_fix.get().status.status, sensor_msgs::NavSatStatus::STATUS_GBAS_FIX);
+  EXPECT_EQ(g_msg_enhanced_fix.get().latitude, packet.latitude * (180 / M_PI));
+  EXPECT_EQ(g_msg_enhanced_fix.get().longitude, packet.longitude * (180 / M_PI));
+  EXPECT_EQ(g_msg_enhanced_fix.get().altitude, packet.altitude);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance_type, sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[0], SQUARE(packet.chan.chan3.acc_position_east * 1e-3)); // x
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[1], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[2], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[3], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[4], SQUARE(packet.chan.chan3.acc_position_north * 1e-3)); // y
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[5], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[6], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[7], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[8], SQUARE(packet.chan.chan3.acc_position_down * 1e-3)); // z
+
   // Set position covariance on channel 3 with old age
   memset(&packet.chan, 0x00, sizeof(packet.chan));
   packet.channel = 3;
@@ -296,9 +372,11 @@ TEST(Main, fix)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_TRUE(waitForMsgs(DURATION));
   ASSERT_TRUE(g_msg_fix.valid());
+  ASSERT_TRUE(g_msg_enhanced_fix.valid());
   ASSERT_TRUE(g_msg_vel.valid());
   ASSERT_TRUE(g_msg_imu.valid());
   EXPECT_STREQ(g_msg_fix.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
+  EXPECT_STREQ(g_msg_enhanced_fix.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
   EXPECT_EQ(g_msg_fix.get().status.status, sensor_msgs::NavSatStatus::STATUS_GBAS_FIX);
   EXPECT_EQ(g_msg_fix.get().status.service, sensor_msgs::NavSatStatus::SERVICE_GPS);
   EXPECT_EQ(g_msg_fix.get().latitude, packet.latitude * (180 / M_PI));
@@ -314,6 +392,21 @@ TEST(Main, fix)
   EXPECT_EQ(g_msg_fix.get().position_covariance[6], 0);
   EXPECT_EQ(g_msg_fix.get().position_covariance[7], 0);
   EXPECT_EQ(g_msg_fix.get().position_covariance[8], 0);
+
+  EXPECT_EQ(g_msg_enhanced_fix.get().status.status, sensor_msgs::NavSatStatus::STATUS_GBAS_FIX);
+  EXPECT_EQ(g_msg_enhanced_fix.get().latitude, packet.latitude * (180 / M_PI));
+  EXPECT_EQ(g_msg_enhanced_fix.get().longitude, packet.longitude * (180 / M_PI));
+  EXPECT_EQ(g_msg_enhanced_fix.get().altitude, packet.altitude);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance_type, sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[0], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[1], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[2], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[3], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[4], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[5], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[6], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[7], 0);
+  EXPECT_EQ(g_msg_enhanced_fix.get().position_covariance[8], 0);
 }
 
 // Verify correct fields in the geometry_msgs::TwistWithCovarianceStamped message
@@ -333,6 +426,7 @@ TEST(Main, vel)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_TRUE(waitForMsgs(DURATION));
   ASSERT_TRUE(g_msg_fix.valid());
+  ASSERT_TRUE(g_msg_enhanced_fix.valid());
   ASSERT_TRUE(g_msg_vel.valid());
   ASSERT_TRUE(g_msg_imu.valid());
   EXPECT_STREQ(g_msg_vel.get().header.frame_id.c_str(), g_frame_id_vel.c_str());
@@ -354,6 +448,7 @@ TEST(Main, vel)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_TRUE(waitForMsgs(DURATION));
   ASSERT_TRUE(g_msg_fix.valid());
+  ASSERT_TRUE(g_msg_enhanced_fix.valid());
   ASSERT_TRUE(g_msg_vel.valid());
   ASSERT_TRUE(g_msg_imu.valid());
   EXPECT_STREQ(g_msg_vel.get().header.frame_id.c_str(), g_frame_id_vel.c_str());
@@ -375,6 +470,7 @@ TEST(Main, vel)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_TRUE(waitForMsgs(DURATION));
   ASSERT_TRUE(g_msg_fix.valid());
+  ASSERT_TRUE(g_msg_enhanced_fix.valid());
   ASSERT_TRUE(g_msg_vel.valid());
   ASSERT_TRUE(g_msg_imu.valid());
   EXPECT_STREQ(g_msg_vel.get().header.frame_id.c_str(), g_frame_id_vel.c_str());
@@ -410,6 +506,7 @@ TEST(Main, imu)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_TRUE(waitForMsgs(DURATION));
   ASSERT_TRUE(g_msg_fix.valid());
+  ASSERT_TRUE(g_msg_enhanced_fix.valid());
   ASSERT_TRUE(g_msg_vel.valid());
   ASSERT_TRUE(g_msg_imu.valid());
   EXPECT_STREQ(g_msg_imu.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
@@ -445,6 +542,7 @@ TEST(Main, imu)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_TRUE(waitForMsgs(DURATION));
   ASSERT_TRUE(g_msg_fix.valid());
+  ASSERT_TRUE(g_msg_enhanced_fix.valid());
   ASSERT_TRUE(g_msg_vel.valid());
   ASSERT_TRUE(g_msg_imu.valid());
   EXPECT_STREQ(g_msg_imu.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
@@ -480,6 +578,7 @@ TEST(Main, imu)
   ASSERT_TRUE(sendPacket(packet));
   EXPECT_TRUE(waitForMsgs(DURATION));
   ASSERT_TRUE(g_msg_fix.valid());
+  ASSERT_TRUE(g_msg_enhanced_fix.valid());
   ASSERT_TRUE(g_msg_vel.valid());
   ASSERT_TRUE(g_msg_imu.valid());
   EXPECT_STREQ(g_msg_imu.get().header.frame_id.c_str(), g_frame_id_gps.c_str());
@@ -525,6 +624,7 @@ int main(int argc, char **argv)
   // Subscribers
   ros::NodeHandle nh;
   g_sub_fix = nh.subscribe("gps/fix", 2, recvGpsFix);
+  g_sub_enhanced_fix = nh.subscribe("gps/enhanced_fix", 2, recvEnhancedGpsFix);
   g_sub_vel = nh.subscribe("gps/vel", 2, recvGpsVel);
   g_sub_imu = nh.subscribe("imu/data", 2, recvImuData);
 
