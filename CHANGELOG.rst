@@ -2,8 +2,8 @@
 Changelog for package oxford_gps_eth
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.1.0 (2019-10-28)
+------------------
 * Add capability to forward RTCM messages from a NTRIP caster to OxTS receivers
 * Contributors: Micho Radovnikovich
 
