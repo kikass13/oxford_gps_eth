@@ -42,6 +42,13 @@ install(DIRECTORY launch
         DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
+catkin_python_setup()
+catkin_install_python(
+  PROGRAMS
+    src/oxford_gps_eth/ntrip_forwarding.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
 if (CATKIN_ENABLE_TESTING)
   add_subdirectory(tests)
 endif()
