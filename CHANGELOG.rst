@@ -2,8 +2,8 @@
 Changelog for package oxford_gps_eth
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+1.1.1 (2019-10-31)
+------------------
 * Install Python script
 * Add missing rospy dependency
 * Contributors: Kevin Hallenbeck, Micho Radovnikovich
