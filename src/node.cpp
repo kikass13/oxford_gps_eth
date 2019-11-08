@@ -122,6 +122,13 @@ static inline double SQUARE(double x) { return x * x; }
 #ifndef OXFORD_DISPLAY_INFO
 #define OXFORD_DISPLAY_INFO 0
 #endif
+#if OXFORD_DISPLAY_INFO
+#define OXTS_INFO(...) ROS_INFO(__VA_ARGS__)
+#define OXTS_WARN(...) ROS_WARN(__VA_ARGS__)
+#else
+#define OXTS_INFO(...) ROS_DEBUG(__VA_ARGS__)
+#define OXTS_WARN(...) ROS_DEBUG(__VA_ARGS__)
+#endif
 
 static const std::map<uint8_t, std::string> POS_MODE_MAP = {
   {MODE_NONE, "NONE"},
@@ -314,13 +321,11 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
           fix_status = sensor_msgs::NavSatStatus::STATUS_NO_FIX;
           break;
       }
-#if OXFORD_DISPLAY_INFO
-    ROS_INFO("Num Sats: %u, Position mode: %u, Velocity mode: %u, Orientation mode: %u",
-             packet->chan.chan0.num_sats,
-             packet->chan.chan0.position_mode,
-             packet->chan.chan0.velocity_mode,
-             packet->chan.chan0.orientation_mode);
-#endif
+      OXTS_INFO("Num Sats: %u, Position mode: %u, Velocity mode: %u, Orientation mode: %u",
+                packet->chan.chan0.num_sats,
+                packet->chan.chan0.position_mode,
+                packet->chan.chan0.velocity_mode,
+                packet->chan.chan0.orientation_mode);
       break;
     case 3:
       if (packet->chan.chan3.age < 150) {
@@ -328,12 +333,10 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
         position_covariance[1] = SQUARE((double)packet->chan.chan3.acc_position_north * 1e-3);
         position_covariance[2] = SQUARE((double)packet->chan.chan3.acc_position_down * 1e-3);
         position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
-#if OXFORD_DISPLAY_INFO
-        ROS_INFO("Position accuracy: North: %umm, East: %umm, Down: %umm",
-                 packet->chan.chan3.acc_position_north,
-                 packet->chan.chan3.acc_position_east,
-                 packet->chan.chan3.acc_position_down);
-#endif
+        OXTS_INFO("Position accuracy: North: %umm, East: %umm, Down: %umm",
+                  packet->chan.chan3.acc_position_north,
+                  packet->chan.chan3.acc_position_east,
+                  packet->chan.chan3.acc_position_down);
       } else {
         position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
       }
@@ -344,12 +347,10 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
         velocity_covariance[1] = SQUARE((double)packet->chan.chan4.acc_velocity_north * 1e-3);
         velocity_covariance[2] = SQUARE((double)packet->chan.chan4.acc_velocity_down * 1e-3);
         velocity_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
-#if OXFORD_DISPLAY_INFO
-        ROS_INFO("Velocity accuracy: North: %umm/s, East: %umm/s, Down: %umm/s",
-                 packet->chan.chan4.acc_velocity_north,
-                 packet->chan.chan4.acc_velocity_east,
-                 packet->chan.chan4.acc_velocity_down);
-#endif
+        OXTS_INFO("Velocity accuracy: North: %umm/s, East: %umm/s, Down: %umm/s",
+                  packet->chan.chan4.acc_velocity_north,
+                  packet->chan.chan4.acc_velocity_east,
+                  packet->chan.chan4.acc_velocity_down);
       } else {
         velocity_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
       }
@@ -361,41 +362,31 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
         orientation_covariance[1] = SQUARE((double)packet->chan.chan5.acc_pitch * 1e-5);
         orientation_covariance[2] = SQUARE((double)packet->chan.chan5.acc_heading * 1e-5);
         orientation_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
-#if OXFORD_DISPLAY_INFO
-        ROS_INFO("Velocity accuracy: Heading: %frad, Pitch: %frad, Roll: %frad",
-                 (double)packet->chan.chan5.acc_heading * 1e-5,
-                 (double)packet->chan.chan5.acc_pitch * 1e-5,
-                 (double)packet->chan.chan5.acc_roll * 1e-5);
-#endif
+        OXTS_INFO("Velocity accuracy: Heading: %frad, Pitch: %frad, Roll: %frad",
+                  (double)packet->chan.chan5.acc_heading * 1e-5,
+                  (double)packet->chan.chan5.acc_pitch * 1e-5,
+                  (double)packet->chan.chan5.acc_roll * 1e-5);
       } else {
         orientation_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
       }
       break;
     case 23:
-#if OXFORD_DISPLAY_INFO
-      ROS_INFO("Delay: %ums", packet->chan.chan23.delay_ms);
-#endif
+      OXTS_INFO("Delay: %ums", packet->chan.chan23.delay_ms);
       break;
     case 27:
-#if OXFORD_DISPLAY_INFO
-      ROS_INFO("Heading quality: %u", packet->chan.chan27.heading_quality);
-#endif
+      OXTS_INFO("Heading quality: %u", packet->chan.chan27.heading_quality);
       break;
     case 37:
-#if OXFORD_DISPLAY_INFO
       if (packet->chan.chan37.valid) {
-          ROS_INFO("Heading Misalignment: Angle: %frad, Accuracy: %frad",
-                   (double)packet->chan.chan37.heading_misalignment_angle * 1e-4,
-                   (double)packet->chan.chan37.heading_misalignment_accuracy * 1e-4);
+          OXTS_INFO("Heading Misalignment: Angle: %frad, Accuracy: %frad",
+                    (double)packet->chan.chan37.heading_misalignment_angle * 1e-4,
+                    (double)packet->chan.chan37.heading_misalignment_accuracy * 1e-4);
         }
-#endif
       break;
     case 48:
-#if OXFORD_DISPLAY_INFO
-      ROS_INFO("HDOP: %0.1f, PDOP: %0.1f",
-               (double)packet->chan.chan48.HDOP * 1e-1,
-               (double)packet->chan.chan48.PDOP * 1e-1);
-#endif
+      OXTS_INFO("HDOP: %0.1f, PDOP: %0.1f",
+                (double)packet->chan.chan48.HDOP * 1e-1,
+                (double)packet->chan.chan48.PDOP * 1e-1);
       break;
   }
   std_msgs::String str_msg;
@@ -509,10 +500,8 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     msg_odom.twist.covariance[1*6 + 1] = SQUARE(std_y_vel);
     pub_odom.publish(msg_odom);
 
-#if OXFORD_DISPLAY_INFO
   } else {
-    ROS_WARN("Nav Status: %u", packet->nav_status);
-#endif
+    OXTS_WARN("Nav Status: %u", packet->nav_status);
   }
 }
 
