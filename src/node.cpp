@@ -249,11 +249,11 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
 {
   static uint8_t fix_status = sensor_msgs::NavSatStatus::STATUS_FIX;
   static uint8_t position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
-  static double position_covariance[3];
+  static double position_stddev[3];
   static uint8_t velocity_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
-  static double velocity_covariance[3];
+  static double velocity_stddev[3];
   static uint8_t orientation_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
-  static double orientation_covariance[3];
+  static double orientation_stddev[3];
   static uint8_t pos_mode = 0;
   static int none_type_count = 0;
 
@@ -329,9 +329,9 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
       break;
     case 3:
       if (packet->chan.chan3.age < 150) {
-        position_covariance[0] = SQUARE((double)packet->chan.chan3.acc_position_east * 1e-3);
-        position_covariance[1] = SQUARE((double)packet->chan.chan3.acc_position_north * 1e-3);
-        position_covariance[2] = SQUARE((double)packet->chan.chan3.acc_position_down * 1e-3);
+        position_stddev[0] = (double)packet->chan.chan3.acc_position_east * 1e-3;
+        position_stddev[1] = (double)packet->chan.chan3.acc_position_north * 1e-3;
+        position_stddev[2] = (double)packet->chan.chan3.acc_position_down * 1e-3;
         position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
         OXTS_INFO("Position accuracy: North: %umm, East: %umm, Down: %umm",
                   packet->chan.chan3.acc_position_north,
@@ -343,9 +343,9 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
       break;
     case 4:
       if (packet->chan.chan4.age < 150) {
-        velocity_covariance[0] = SQUARE((double)packet->chan.chan4.acc_velocity_east * 1e-3);
-        velocity_covariance[1] = SQUARE((double)packet->chan.chan4.acc_velocity_north * 1e-3);
-        velocity_covariance[2] = SQUARE((double)packet->chan.chan4.acc_velocity_down * 1e-3);
+        velocity_stddev[0] = (double)packet->chan.chan4.acc_velocity_east * 1e-3;
+        velocity_stddev[1] = (double)packet->chan.chan4.acc_velocity_north * 1e-3;
+        velocity_stddev[2] = (double)packet->chan.chan4.acc_velocity_down * 1e-3;
         velocity_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
         OXTS_INFO("Velocity accuracy: North: %umm/s, East: %umm/s, Down: %umm/s",
                   packet->chan.chan4.acc_velocity_north,
@@ -358,9 +358,9 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
 
     case 5:
       if (packet->chan.chan5.age < 150) {
-        orientation_covariance[0] = SQUARE((double)packet->chan.chan5.acc_roll * 1e-5);
-        orientation_covariance[1] = SQUARE((double)packet->chan.chan5.acc_pitch * 1e-5);
-        orientation_covariance[2] = SQUARE((double)packet->chan.chan5.acc_heading * 1e-5);
+        orientation_stddev[0] = (double)packet->chan.chan5.acc_roll * 1e-5;
+        orientation_stddev[1] = (double)packet->chan.chan5.acc_pitch * 1e-5;
+        orientation_stddev[2] = (double)packet->chan.chan5.acc_heading * 1e-5;
         orientation_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_DIAGONAL_KNOWN;
         OXTS_INFO("Velocity accuracy: Heading: %frad, Pitch: %frad, Roll: %frad",
                   (double)packet->chan.chan5.acc_heading * 1e-5,
@@ -429,9 +429,9 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     msg_fix.status.service = sensor_msgs::NavSatStatus::SERVICE_GPS;
     msg_fix.position_covariance_type = position_covariance_type;
     if (position_covariance_type > sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN) {
-      msg_fix.position_covariance[0] = position_covariance[0]; // x
-      msg_fix.position_covariance[4] = position_covariance[1]; // y
-      msg_fix.position_covariance[8] = position_covariance[2]; // z
+      msg_fix.position_covariance[0] = SQUARE(position_stddev[0]); // x
+      msg_fix.position_covariance[4] = SQUARE(position_stddev[1]); // y
+      msg_fix.position_covariance[8] = SQUARE(position_stddev[2]); // z
     }
     pub_fix.publish(msg_fix);
 
@@ -442,9 +442,9 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     msg_vel.twist.twist.linear.y = north_vel;
     msg_vel.twist.twist.linear.z = (double)packet->vel_down * -1e-4;
     if (velocity_covariance_type > sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN) {
-      msg_vel.twist.covariance[0] = velocity_covariance[0]; // x
-      msg_vel.twist.covariance[7] = velocity_covariance[1]; // y
-      msg_vel.twist.covariance[14] = velocity_covariance[2]; // z
+      msg_vel.twist.covariance[0] =  SQUARE(velocity_stddev[0]); // x
+      msg_vel.twist.covariance[7] =  SQUARE(velocity_stddev[1]); // y
+      msg_vel.twist.covariance[14] = SQUARE(velocity_stddev[2]); // z
     }
     pub_vel.publish(msg_vel);
 
@@ -464,9 +464,9 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     msg_imu.orientation.y = q.y();
     msg_imu.orientation.z = q.z();
     if (orientation_covariance_type > sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN) {
-      msg_imu.orientation_covariance[0] = orientation_covariance[0]; // x
-      msg_imu.orientation_covariance[4] = orientation_covariance[1]; // y
-      msg_imu.orientation_covariance[8] = orientation_covariance[2]; // z
+      msg_imu.orientation_covariance[0] = SQUARE(orientation_stddev[0]); // x
+      msg_imu.orientation_covariance[4] = SQUARE(orientation_stddev[1]); // y
+      msg_imu.orientation_covariance[8] = SQUARE(orientation_stddev[2]); // z
     }
     pub_imu.publish(msg_imu);
 
@@ -479,25 +479,29 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     msg_odom.pose.pose.orientation = tf::createQuaternionMsgFromYaw(grid_heading);
 
     // Project position standard deviations into UTM frame, accounting for convergence angle
-    double std_east = (double)packet->chan.chan3.acc_position_east * 1e-3;
-    double std_north = (double)packet->chan.chan3.acc_position_north * 1e-3;
-    double std_x = std_east * cos(convergence_angle) - std_north * sin(convergence_angle);
-    double std_y = std_north * sin(convergence_angle) + std_east * cos(convergence_angle);
+    double std_east = position_stddev[0];
+    double std_north = position_stddev[1];
+    double std_x = std_east  * cos(convergence_angle) - std_north * sin(convergence_angle);
+    double std_y = std_north * sin(convergence_angle) + std_east  * cos(convergence_angle);
 
     // Project velocity standard deviations into local frame
-    double std_east_vel = (double)packet->chan.chan4.acc_velocity_east * 1e-3;
-    double std_north_vel = (double)packet->chan.chan4.acc_velocity_north * 1e-3;
-    double std_x_vel = std_east_vel * cos(enu_heading) + std_north_vel * sin(enu_heading);
+    double std_east_vel = velocity_stddev[0];
+    double std_north_vel = velocity_stddev[1];
+    double std_x_vel =  std_east_vel * cos(enu_heading) + std_north_vel * sin(enu_heading);
     double std_y_vel = -std_east_vel * cos(enu_heading) + std_north_vel * sin(enu_heading);
 
-    msg_odom.pose.covariance[0*6 + 0] = SQUARE(std_x);
-    msg_odom.pose.covariance[1*6 + 1] = SQUARE(std_y);
-    msg_odom.pose.covariance[5*6 + 5] = orientation_covariance[2];
+    if (position_covariance_type > sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN) {
+      msg_odom.pose.covariance[0*6 + 0] = SQUARE(std_x);
+      msg_odom.pose.covariance[1*6 + 1] = SQUARE(std_y);
+      msg_odom.pose.covariance[5*6 + 5] = SQUARE(orientation_stddev[2]);
+    }
     msg_odom.twist.twist.linear.x = local_x_vel;
     msg_odom.twist.twist.linear.y = local_y_vel;
     msg_odom.twist.twist.angular.z = msg_imu.angular_velocity.z;
-    msg_odom.twist.covariance[0*6 + 0] = SQUARE(std_x_vel);
-    msg_odom.twist.covariance[1*6 + 1] = SQUARE(std_y_vel);
+    if (velocity_covariance_type > sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN) {
+      msg_odom.twist.covariance[0*6 + 0] = SQUARE(std_x_vel);
+      msg_odom.twist.covariance[1*6 + 1] = SQUARE(std_y_vel);
+    }
     pub_odom.publish(msg_odom);
 
   } else {
