@@ -470,14 +470,6 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     }
     pub_imu.publish(msg_imu);
 
-    nav_msgs::Odometry msg_odom;
-    msg_odom.header.stamp = stamp;
-    msg_odom.header.frame_id = "utm";
-    msg_odom.child_frame_id = frame_id_odom;
-    msg_odom.pose.pose.position.x = utm_x;
-    msg_odom.pose.pose.position.y = utm_y;
-    msg_odom.pose.pose.orientation = tf::createQuaternionMsgFromYaw(grid_heading);
-
     // Project position standard deviations into UTM frame, accounting for convergence angle
     double std_east = position_stddev[0];
     double std_north = position_stddev[1];
@@ -490,6 +482,13 @@ static inline void handlePacket(const Packet *packet, ros::Publisher &pub_fix, r
     double std_x_vel =  std_east_vel * cos(enu_heading) + std_north_vel * sin(enu_heading);
     double std_y_vel = -std_east_vel * cos(enu_heading) + std_north_vel * sin(enu_heading);
 
+    nav_msgs::Odometry msg_odom;
+    msg_odom.header.stamp = stamp;
+    msg_odom.header.frame_id = "utm";
+    msg_odom.child_frame_id = frame_id_odom;
+    msg_odom.pose.pose.position.x = utm_x;
+    msg_odom.pose.pose.position.y = utm_y;
+    msg_odom.pose.pose.orientation = tf::createQuaternionMsgFromYaw(grid_heading);
     if (position_covariance_type > sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN) {
       msg_odom.pose.covariance[0*6 + 0] = SQUARE(std_x);
       msg_odom.pose.covariance[1*6 + 1] = SQUARE(std_y);
